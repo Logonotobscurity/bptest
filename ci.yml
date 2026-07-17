@@ -1,0 +1,95 @@
+name: BP Tracker CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  lint-and-format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install ruff
+        run: pip install ruff
+
+      - name: Lint check (ruff check)
+        run: ruff check .
+
+      - name: Format check (ruff format)
+        run: ruff format --check .
+
+  test-and-coverage:
+    runs-on: ubuntu-latest
+    needs: lint-and-format
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        run: pip install pytest pytest-cov
+
+      - name: Run unit tests with coverage
+        run: pytest
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: ./coverage.xml
+          fail_ci_if_error: false
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  cli-smoke-test:
+    runs-on: ubuntu-latest
+    needs: test-and-coverage
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Add a normal reading
+        run: python tracker.py add 122 89 82 --notes "ci test"
+
+      - name: Reject an invalid reading (expect non-zero exit)
+        run: |
+          if python tracker.py add 999 999 999; then
+            echo "Validation failed to reject an implausible reading"
+            exit 1
+          else
+            echo "Validation correctly rejected the bad reading"
+          fi
+
+      - name: Set a goal
+        run: python tracker.py set-goal "Walk 30 minutes daily"
+
+      - name: Set a reminder time
+        run: python tracker.py set-reminder 07:30
+
+      - name: Generate report
+        run: python tracker.py report --days 7
+
+      - name: Export CSV
+        run: python tracker.py export
+
+      - name: Import CSV back in (dedupe should apply)
+        run: python tracker.py import bp_export.csv
+
+      - name: Clean up generated data (do not persist real/test health data)
+        run: rm -f bp_data.json bp_export.csv bp_reminders.ics

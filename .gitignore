@@ -1,0 +1,10 @@
+bp_data.json
+bp_export.csv
+bp_reminders.ics
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
